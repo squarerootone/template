@@ -1,0 +1,6 @@
+# Python + venv + ruff + pytest + packaging
+**/.venv/
+**/.ruff_cache/
+**/.pytest_cache/
+**/__pycache__/
+**/dist/

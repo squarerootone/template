@@ -1,0 +1,60 @@
+name: Lint, Format, and Test
+
+on:
+  push:
+    branches:
+    - main
+    - stage
+    - development
+    paths:
+    - 'libs/**'
+    - '.github/workflows/lint-format-test.yml'
+  pull_request:
+    branches:
+    - main
+    - stage
+    - development
+    paths:
+    - 'libs/**'
+    - '.github/workflows/lint-format-test.yml'
+
+env:
+  STAGE_TYPE: ${{ contains(github.ref, 'main' ) && 'prod' || contains(github.ref, 'stage' )  && 'stg' ||  'dev'}}
+  CREDENTIALS_JSON: ${{ contains(github.ref, 'main' ) && secrets.GCP_SA_KEY || secrets.GCP_SA_KEY_DEV }}
+
+jobs:
+  lint-format-test:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/quiltai/gh-action:python-3.9-uv-ruff
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 10  # Fetch enough history to have data from the branch to merge into
+
+    # - name: Run pre-commit hooks
+    #   # working-directory: ${{ github.workspace }}
+    #   run: |
+    #     # Install pre-commit hooks
+    #     pre-commit install
+    #     pre-commit run --all-files
+
+    - name: Check for changes in libs directory
+      id: changes
+      run: ./.github/scripts/get-changed-files.sh libs
+
+    - name: Authenticate with Google Cloud
+      if: steps.changes.outputs.dirs != '' && ${{ env.CREDENTIALS_JSON != '' }}
+      uses: "google-github-actions/auth@v2"
+      with:
+        credentials_json: ${{ env.CREDENTIALS_JSON }}
+
+    - name: Configure UV
+      if: steps.changes.outputs.dirs != ''
+      run: ./.github/scripts/configure-uv.sh
+
+    - name: Lint, Format, and Test each library that was changed
+      if: steps.changes.outputs.dirs != ''
+      run: ./.github/scripts/lint-format-test.sh "${{ steps.changes.outputs.dirs }}"

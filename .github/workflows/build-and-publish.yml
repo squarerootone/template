@@ -1,0 +1,47 @@
+name: Build and Publish
+
+on:
+  push:
+    branches:
+    - main
+    - stage
+    - development
+    paths:
+    - 'libs/**'
+    - '.github/workflows/build-and-publish.yml'
+
+env:
+  STAGE_TYPE: ${{ contains(github.ref, 'main' ) && 'prod' || contains(github.ref, 'stage' )  && 'stg' ||  'dev'}}
+  CREDENTIALS_JSON: ${{ contains(github.ref, 'main' ) && secrets.GCP_SA_KEY || secrets.GCP_SA_KEY_DEV }}
+  UV_PUBLISH_USERNAME: oauth2accesstoken
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/quiltai/gh-action:python-3.9-uv-ruff
+    # TODO only run this if linting succeeds if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 10  # Fetch enough history to have data from the branch to merge into
+
+    - name: Check for changes in libs directory
+      id: changes
+      run: ./.github/scripts/get-changed-files.sh libs --exclude libs/template
+
+    - name: Authenticate with Google Cloud
+      if: steps.changes.outputs.dirs != '' && ${{ env.CREDENTIALS_JSON != '' }}
+      uses: "google-github-actions/auth@v2"
+      with:
+        credentials_json: ${{ env.CREDENTIALS_JSON }}
+
+    - name: Configure UV
+      if: steps.changes.outputs.dirs != ''
+      run: ./.github/scripts/configure-uv.sh
+
+    - name: Build and publish packages
+      if: steps.changes.outputs.dirs != ''
+      run: ./.github/scripts/build-publish.sh "${{ steps.changes.outputs.dirs }}"

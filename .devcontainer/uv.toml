@@ -1,0 +1,7 @@
+publish-url = "https://..."
+keyring-provider = "subprocess"
+index-url = "https://..."
+
+[pip]
+index-url = "https://..."
+keyring-provider = "subprocess"
